@@ -205,10 +205,33 @@
 }
 
 .empty-state {
-  padding: 14px;
+  padding: 16px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.empty-state strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.profile-highlight {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-highlight strong {
+  color: #f9a8d4;
 }
 
 .tiny-copy {

@@ -318,7 +318,14 @@ function App() {
                 <p className="eyebrow">Você está dentro</p>
                 <h3>Olá, {currentUser.name}!</h3>
                 <p>{feedback}</p>
-                <p className="tiny-copy">Você já publicou {myPostsCount} {myPostsCount === 1 ? 'post' : 'posts'}.</p>
+                <div className="profile-highlight">
+                  <span>Posts seus</span>
+                  <strong>{myPostsCount}</strong>
+                </div>
+                <div className="profile-highlight">
+                  <span>Seu estilo</span>
+                  <strong>{theme === 'dark' ? 'Noite' : 'Dia'}</strong>
+                </div>
                 <button type="button" onClick={handleLogout}>
                   Sair
                 </button>
@@ -368,7 +375,10 @@ function App() {
 
           <div className="feed-list">
             {sortedPosts.length === 0 ? (
-              <div className="empty-state">Ainda não há posts por aqui. Seja o primeiro!</div>
+              <div className="empty-state">
+                <strong>Nada por aqui ainda.</strong>
+                <p>Seja a primeira pessoa a publicar uma ideia, um pensamento ou uma novidade.</p>
+              </div>
             ) : (
               sortedPosts.map((post) => (
                 <article key={post.id} className="post-card">
