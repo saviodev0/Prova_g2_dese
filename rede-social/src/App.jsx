@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { hashPassword, isHashedPassword, verifyPassword } from './utils/password'
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 const initialPosts = [
   {
@@ -23,15 +24,6 @@ const initialPosts = [
   },
 ]
 
-const initialUsers = [
-  {
-    id: 1,
-    name: 'Maya',
-    email: 'maya@rede.com',
-    password: '123456',
-  },
-]
-
 const getStoredValue = (key, fallback) => {
   if (typeof window === 'undefined') return fallback
 
@@ -51,10 +43,57 @@ const saveStoredValue = (key, value) => {
   }
 }
 
+const formatPostTime = (value) => {
+  if (!value) return 'agora'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'agora'
+
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const normalizePost = (post) => ({
+  id: post.id,
+  author: post.author,
+  handle: `@${(post.author || 'usuario').toLowerCase().replace(/\s+/g, '')}`,
+  time: formatPostTime(post.created_at),
+  content: post.content,
+  likes: Number(post.favorites_count ?? 0),
+  liked: Boolean(post.favorited_by_user),
+})
+
+const apiRequest = async (path, { method = 'GET', body, token } = {}) => {
+  const headers = {}
+  if (body) {
+    headers['Content-Type'] = 'application/json'
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.error || 'Não foi possível completar a requisição.')
+  }
+
+  return data
+}
+
 function App() {
   const [theme, setTheme] = useState(() => getStoredValue('social-theme', 'dark'))
-  const [users, setUsers] = useState(() => getStoredValue('social-users', initialUsers))
   const [currentUser, setCurrentUser] = useState(() => getStoredValue('social-current-user', null))
+  const [token, setToken] = useState(() => getStoredValue('social-token', null))
   const [posts, setPosts] = useState(() => getStoredValue('social-posts', initialPosts))
   const [authMode, setAuthMode] = useState('login')
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
@@ -68,19 +107,40 @@ function App() {
   }, [theme])
 
   useEffect(() => {
-    saveStoredValue('social-users', users)
-  }, [users])
-
-  useEffect(() => {
     saveStoredValue('social-current-user', currentUser)
   }, [currentUser])
+
+  useEffect(() => {
+    saveStoredValue('social-token', token)
+  }, [token])
 
   useEffect(() => {
     saveStoredValue('social-posts', posts)
   }, [posts])
 
+  useEffect(() => {
+    const hydrateSession = async () => {
+      if (!token) return
+
+      try {
+        const meResponse = await apiRequest('/api/me', { token })
+        setCurrentUser(meResponse.user)
+
+        const postsResponse = await apiRequest('/api/posts', { token })
+        setPosts(postsResponse.posts.map(normalizePost))
+        setFeedback(`Bem-vindo(a) de volta, ${meResponse.user.name}!`)
+      } catch {
+        setCurrentUser(null)
+        setToken(null)
+        setFeedback('Sua sessão expirou. Faça login novamente.')
+      }
+    }
+
+    hydrateSession()
+  }, [token])
+
   const totalLikes = posts.reduce((sum, post) => sum + post.likes, 0)
-  const totalUsers = users.length
+  const totalUsers = new Set(posts.map((post) => post.author)).size + (currentUser ? 1 : 0)
   const myPostsCount = currentUser
     ? posts.filter((post) => post.author === currentUser.name).length
     : 0
@@ -99,35 +159,18 @@ function App() {
 
     try {
       if (authMode === 'login') {
-        const foundUser = users.find((user) => user.email === authForm.email)
+        const loginResponse = await apiRequest('/api/login', {
+          method: 'POST',
+          body: {
+            email: authForm.email,
+            password: authForm.password,
+          },
+        })
 
-        if (!foundUser) {
-          setFeedback('E-mail ou senha inválidos. Tente novamente.')
-          return
-        }
-
-        const storedPassword = foundUser.password
-        const passwordMatches = isHashedPassword(storedPassword)
-          ? await verifyPassword(authForm.password, storedPassword)
-          : authForm.password === storedPassword
-
-        if (!passwordMatches) {
-          setFeedback('E-mail ou senha inválidos. Tente novamente.')
-          return
-        }
-
-        const normalizedUser = {
-          ...foundUser,
-          password: isHashedPassword(storedPassword)
-            ? storedPassword
-            : await hashPassword(authForm.password),
-        }
-
-        setUsers((prevUsers) =>
-          prevUsers.map((user) => (user.id === normalizedUser.id ? normalizedUser : user)),
-        )
-        setCurrentUser(normalizedUser)
-        setFeedback(`Bem-vindo(a), ${normalizedUser.name}!`)
+        setToken(loginResponse.token)
+        setCurrentUser(loginResponse.user)
+        setPosts((await apiRequest('/api/posts', { token: loginResponse.token })).posts.map(normalizePost))
+        setFeedback(`Bem-vindo(a), ${loginResponse.user.name}!`)
         setAuthForm({ name: '', email: '', password: '' })
         return
       }
@@ -137,37 +180,53 @@ function App() {
         return
       }
 
-      const userExists = users.some((user) => user.email === authForm.email)
-      if (userExists) {
-        setFeedback('Este e-mail já está cadastrado.')
-        return
-      }
+      await apiRequest('/api/register', {
+        method: 'POST',
+        body: {
+          name: authForm.name,
+          email: authForm.email,
+          password: authForm.password,
+        },
+      })
 
-      const newUser = {
-        id: Date.now(),
-        name: authForm.name,
-        email: authForm.email,
-        password: await hashPassword(authForm.password),
-      }
+      const loginResponse = await apiRequest('/api/login', {
+        method: 'POST',
+        body: {
+          email: authForm.email,
+          password: authForm.password,
+        },
+      })
 
-      setUsers((prevUsers) => [...prevUsers, newUser])
-      setCurrentUser(newUser)
-      setFeedback(`Conta criada com sucesso, ${newUser.name}!`)
+      setToken(loginResponse.token)
+      setCurrentUser(loginResponse.user)
+      setPosts((await apiRequest('/api/posts', { token: loginResponse.token })).posts.map(normalizePost))
+      setFeedback(`Conta criada com sucesso, ${loginResponse.user.name}!`)
       setAuthForm({ name: '', email: '', password: '' })
+    } catch (error) {
+      setFeedback(error.message || 'Não foi possível concluir a ação.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        await apiRequest('/api/logout', { method: 'POST', token })
+      } catch {
+        // Ignore logout errors and clear the local session anyway.
+      }
+    }
+
     setCurrentUser(null)
+    setToken(null)
     setFeedback('Você saiu da sessão. Volte sempre!')
   }
 
-  const handlePublish = (event) => {
+  const handlePublish = async (event) => {
     event.preventDefault()
 
-    if (!currentUser) {
+    if (!currentUser || !token) {
       setFeedback('Faça login para publicar.')
       return
     }
@@ -178,49 +237,68 @@ function App() {
       return
     }
 
-    const newPost = {
-      id: Date.now(),
-      author: currentUser.name,
-      handle: `@${currentUser.name.toLowerCase()}`,
-      time: 'agora',
-      content,
-      likes: 0,
-      liked: false,
-    }
+    try {
+      const response = await apiRequest('/api/posts', {
+        method: 'POST',
+        body: { content },
+        token,
+      })
 
-    setPosts((currentPosts) => [newPost, ...currentPosts])
-    setDraft('')
-    setFeedback('Post publicado com sucesso!')
+      setPosts((currentPosts) => [normalizePost(response.post), ...currentPosts])
+      setDraft('')
+      setFeedback('Post publicado com sucesso!')
+    } catch (error) {
+      setFeedback(error.message || 'Não foi possível publicar o post.')
+    }
   }
 
-  const handleToggleLike = (postId) => {
-    if (!currentUser) {
+  const handleToggleLike = async (postId) => {
+    if (!currentUser || !token) {
       setFeedback('Entre na conta para curtir posts.')
       return
     }
 
-    setPosts((currentPosts) =>
-      currentPosts.map((post) => {
-        if (post.id !== postId) {
-          return post
-        }
-
-        return {
-          ...post,
-          liked: !post.liked,
-          likes: post.likes + (post.liked ? -1 : 1),
-        }
-      }),
-    )
-  }
-
-  const handleDeletePost = (postId) => {
-    if (!currentUser) {
+    const targetPost = posts.find((post) => post.id === postId)
+    if (!targetPost) {
       return
     }
 
-    setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postId))
-    setFeedback('Post removido da linha do tempo.')
+    try {
+      await apiRequest(`/api/posts/${postId}/favorite`, {
+        method: targetPost.liked ? 'DELETE' : 'POST',
+        token,
+      })
+
+      setPosts((currentPosts) =>
+        currentPosts.map((post) => {
+          if (post.id !== postId) {
+            return post
+          }
+
+          return {
+            ...post,
+            liked: !post.liked,
+            likes: post.likes + (post.liked ? -1 : 1),
+          }
+        }),
+      )
+    } catch (error) {
+      setFeedback(error.message || 'Não foi possível atualizar o like.')
+    }
+  }
+
+  const handleDeletePost = async (postId) => {
+    if (!currentUser || !token) {
+      return
+    }
+
+    try {
+      await apiRequest(`/api/posts/${postId}`, { method: 'DELETE', token })
+      setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postId))
+      setFeedback('Post removido da linha do tempo.')
+    } catch (error) {
+      setFeedback(error.message || 'Não foi possível excluir o post.')
+    }
   }
 
   return (
@@ -245,8 +323,8 @@ function App() {
             <p className="eyebrow">Seu espaço para compartilhar</p>
             <h2>Uma rede simples, rápida e com personalidade.</h2>
             <p className="hero-copy">
-              Agora a interface já simula a experiência completa: entrar, publicar, curtir e
-              manter tudo salvo no navegador.
+              Agora a interface conecta com o backend: entrar, publicar, curtir e manter tudo
+              sincronizado em tempo real.
             </p>
 
             <div className="stats">
