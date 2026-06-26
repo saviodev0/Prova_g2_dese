@@ -61,6 +61,7 @@ function App() {
   const [draft, setDraft] = useState('')
   const [feedback, setFeedback] = useState('Bem-vindo(a) à rede social!')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activeFilter, setActiveFilter] = useState('recentes')
 
   useEffect(() => {
     saveStoredValue('social-theme', theme)
@@ -83,6 +84,14 @@ function App() {
   const myPostsCount = currentUser
     ? posts.filter((post) => post.author === currentUser.name).length
     : 0
+
+  const sortedPosts = [...posts].sort((firstPost, secondPost) => {
+    if (activeFilter === 'curtidos') {
+      return secondPost.likes - firstPost.likes
+    }
+
+    return secondPost.id - firstPost.id
+  })
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault()
@@ -205,6 +214,15 @@ function App() {
     )
   }
 
+  const handleDeletePost = (postId) => {
+    if (!currentUser) {
+      return
+    }
+
+    setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postId))
+    setFeedback('Post removido da linha do tempo.')
+  }
+
   return (
     <div className={`app-shell ${theme}`}>
       <header className="topbar">
@@ -245,6 +263,8 @@ function App() {
                 <span>usuários</span>
               </div>
             </div>
+
+            <div className="mini-badge">✨ Feed vivo com atualização em tempo real</div>
           </div>
 
           <div className="auth-card">
@@ -326,11 +346,31 @@ function App() {
             </div>
           </form>
 
+          <div className="feed-toolbar">
+            <h3>Feed</h3>
+            <div className="filter-group">
+              <button
+                type="button"
+                className={activeFilter === 'recentes' ? 'active' : ''}
+                onClick={() => setActiveFilter('recentes')}
+              >
+                Recentes
+              </button>
+              <button
+                type="button"
+                className={activeFilter === 'curtidos' ? 'active' : ''}
+                onClick={() => setActiveFilter('curtidos')}
+              >
+                Mais curtidos
+              </button>
+            </div>
+          </div>
+
           <div className="feed-list">
-            {posts.length === 0 ? (
+            {sortedPosts.length === 0 ? (
               <div className="empty-state">Ainda não há posts por aqui. Seja o primeiro!</div>
             ) : (
-              posts.map((post) => (
+              sortedPosts.map((post) => (
                 <article key={post.id} className="post-card">
                   <div className="post-header">
                     <div>
@@ -339,6 +379,15 @@ function App() {
                         {post.handle} • {post.time}
                       </p>
                     </div>
+                    {currentUser?.name === post.author ? (
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() => handleDeletePost(post.id)}
+                      >
+                        Excluir
+                      </button>
+                    ) : null}
                   </div>
                   <p className="post-content">{post.content}</p>
                   <div className="post-footer">

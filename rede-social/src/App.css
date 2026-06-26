@@ -124,6 +124,16 @@
   font-size: 1.2rem;
 }
 
+.mini-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(236, 72, 153, 0.16);
+  color: #f9a8d4;
+  font-size: 0.9rem;
+}
+
 .auth-toggle {
   display: flex;
   gap: 10px;
@@ -214,6 +224,38 @@
   transform: none;
 }
 
+.feed-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.feed-toolbar h3 {
+  margin: 0;
+}
+
+.filter-group {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-group button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: inherit;
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.filter-group button.active {
+  background: linear-gradient(135deg, #7c3aed, #ec4899);
+  color: white;
+  border-color: transparent;
+}
+
 .feed-list {
   display: flex;
   flex-direction: column;
@@ -237,6 +279,14 @@
 .post-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.delete-button {
+  border: none;
+  background: transparent;
+  color: #f472b6;
+  cursor: pointer;
+  padding: 0;
 }
 
 .like-button {
