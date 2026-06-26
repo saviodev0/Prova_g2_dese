@@ -198,12 +198,32 @@ app.post('/api/posts', async (req, res) => {
   }
 });
 
-app.get('/api/me', async (req, res) => {
+app.post('/api/posts/:postId/favorite', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     const currentUser = await getUserByToken(token);
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized.' });
-    res.json({ user: currentUser });
+
+    const postId = Number(req.params.postId);
+    const post = await get('SELECT id FROM posts WHERE id = ?', [postId]);
+    if (!post) return res.status(404).json({ error: 'Post not found.' });
+
+    await run('INSERT OR IGNORE INTO favorites (user_id, post_id) VALUES (?, ?)', [currentUser.id, postId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/posts/:postId/favorite', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const currentUser = await getUserByToken(token);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const postId = Number(req.params.postId);
+    await run('DELETE FROM favorites WHERE user_id = ? AND post_id = ?', [currentUser.id, postId]);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
