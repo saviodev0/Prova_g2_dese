@@ -229,6 +229,17 @@ app.delete('/api/posts/:postId/favorite', async (req, res) => {
   }
 });
 
+app.get('/api/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const currentUser = await getUserByToken(token);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized.' });
+    res.json({ user: currentUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 initializeDatabase().then(() => {
   app.listen(port, () => {
     console.log(`Back-end running on http://localhost:${port}`);
