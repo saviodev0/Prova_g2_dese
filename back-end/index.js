@@ -152,6 +152,52 @@ app.post('/api/logout', async (req, res) => {
 
 
 
+app.get('/api/posts', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const currentUser = await getUserByToken(token);
+    const posts = await all(`
+      SELECT p.id, p.user_id, u.name AS author, p.content, p.created_at,
+        (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorites_count,
+        EXISTS(SELECT 1 FROM favorites f WHERE f.post_id = p.id AND f.user_id = ?) AS favorited_by_user
+      FROM posts p
+      JOIN users u ON u.id = p.user_id
+      ORDER BY p.created_at DESC
+    `, [currentUser?.id || null]);
+
+    res.json({ posts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/posts', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const currentUser = await getUserByToken(token);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Post content is required.' });
+    }
+
+    const result = await run('INSERT INTO posts (user_id, content) VALUES (?, ?)', [currentUser.id, content.trim()]);
+    const post = await get(`
+      SELECT p.id, p.user_id, u.name AS author, p.content, p.created_at,
+        0 AS favorites_count,
+        0 AS favorited_by_user
+      FROM posts p
+      JOIN users u ON u.id = p.user_id
+      WHERE p.id = ?
+    `, [result.id]);
+
+    res.status(201).json({ post });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
