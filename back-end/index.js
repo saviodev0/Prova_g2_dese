@@ -54,6 +54,15 @@ async function initializeDatabase() {
   `);
 
   await run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await run(`
     CREATE TABLE IF NOT EXISTS posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -150,6 +159,8 @@ app.post('/api/logout', async (req, res) => {
   }
 });
 
+
+
 app.get('/api/posts', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -191,6 +202,24 @@ app.post('/api/posts', async (req, res) => {
     `, [result.id]);
 
     res.status(201).json({ post });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/posts/:postId', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const currentUser = await getUserByToken(token);
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const postId = Number(req.params.postId);
+    const post = await get('SELECT user_id FROM posts WHERE id = ?', [postId]);
+    if (!post) return res.status(404).json({ error: 'Post not found.' });
+    if (post.user_id !== currentUser.id) return res.status(403).json({ error: 'Forbidden.' });
+
+    await run('DELETE FROM posts WHERE id = ?', [postId]);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

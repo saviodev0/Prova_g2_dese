@@ -124,6 +124,16 @@
   font-size: 1.2rem;
 }
 
+.mini-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(236, 72, 153, 0.16);
+  color: #f9a8d4;
+  font-size: 0.9rem;
+}
+
 .auth-toggle {
   display: flex;
   gap: 10px;
@@ -182,11 +192,91 @@
   resize: vertical;
 }
 
+.composer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-hint {
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.empty-state strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.profile-highlight {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-highlight strong {
+  color: #f9a8d4;
+}
+
+.tiny-copy {
+  margin: 4px 0 0;
+  opacity: 0.8;
+}
+
 .composer button:disabled,
-.like-button:disabled {
+.like-button:disabled,
+.auth-form button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.feed-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.feed-toolbar h3 {
+  margin: 0;
+}
+
+.filter-group {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-group button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: inherit;
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.filter-group button.active {
+  background: linear-gradient(135deg, #7c3aed, #ec4899);
+  color: white;
+  border-color: transparent;
 }
 
 .feed-list {
@@ -212,6 +302,14 @@
 .post-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.delete-button {
+  border: none;
+  background: transparent;
+  color: #f472b6;
+  cursor: pointer;
+  padding: 0;
 }
 
 .like-button {
