@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import { hashPassword, isHashedPassword, verifyPassword } from './utils/password'
 
 const initialPosts = [
   {
@@ -22,59 +23,170 @@ const initialPosts = [
   },
 ]
 
+const initialUsers = [
+  {
+    id: 1,
+    name: 'Maya',
+    email: 'maya@rede.com',
+    password: '123456',
+  },
+]
+
+const getStoredValue = (key, fallback) => {
+  if (typeof window === 'undefined') return fallback
+
+  const storedValue = window.localStorage.getItem(key)
+  if (!storedValue) return fallback
+
+  try {
+    return JSON.parse(storedValue)
+  } catch {
+    return fallback
+  }
+}
+
+const saveStoredValue = (key, value) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  }
+}
+
 function App() {
-  const [theme, setTheme] = useState('dark')
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [theme, setTheme] = useState(() => getStoredValue('social-theme', 'dark'))
+  const [users, setUsers] = useState(() => getStoredValue('social-users', initialUsers))
+  const [currentUser, setCurrentUser] = useState(() => getStoredValue('social-current-user', null))
+  const [posts, setPosts] = useState(() => getStoredValue('social-posts', initialPosts))
   const [authMode, setAuthMode] = useState('login')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
   const [draft, setDraft] = useState('')
-  const [posts, setPosts] = useState(initialPosts)
+  const [feedback, setFeedback] = useState('Bem-vindo(a) à rede social!')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleAuthSubmit = (event) => {
+  useEffect(() => {
+    saveStoredValue('social-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    saveStoredValue('social-users', users)
+  }, [users])
+
+  useEffect(() => {
+    saveStoredValue('social-current-user', currentUser)
+  }, [currentUser])
+
+  useEffect(() => {
+    saveStoredValue('social-posts', posts)
+  }, [posts])
+
+  const totalLikes = posts.reduce((sum, post) => sum + post.likes, 0)
+  const totalUsers = users.length
+  const myPostsCount = currentUser
+    ? posts.filter((post) => post.author === currentUser.name).length
+    : 0
+
+  const handleAuthSubmit = async (event) => {
     event.preventDefault()
+    setIsSubmitting(true)
 
-    if (!email.trim() || !password.trim()) {
-      return
+    try {
+      if (authMode === 'login') {
+        const foundUser = users.find((user) => user.email === authForm.email)
+
+        if (!foundUser) {
+          setFeedback('E-mail ou senha inválidos. Tente novamente.')
+          return
+        }
+
+        const storedPassword = foundUser.password
+        const passwordMatches = isHashedPassword(storedPassword)
+          ? await verifyPassword(authForm.password, storedPassword)
+          : authForm.password === storedPassword
+
+        if (!passwordMatches) {
+          setFeedback('E-mail ou senha inválidos. Tente novamente.')
+          return
+        }
+
+        const normalizedUser = {
+          ...foundUser,
+          password: isHashedPassword(storedPassword)
+            ? storedPassword
+            : await hashPassword(authForm.password),
+        }
+
+        setUsers((prevUsers) =>
+          prevUsers.map((user) => (user.id === normalizedUser.id ? normalizedUser : user)),
+        )
+        setCurrentUser(normalizedUser)
+        setFeedback(`Bem-vindo(a), ${normalizedUser.name}!`)
+        setAuthForm({ name: '', email: '', password: '' })
+        return
+      }
+
+      if (!authForm.name || !authForm.email || !authForm.password) {
+        setFeedback('Preencha todos os campos para criar a conta.')
+        return
+      }
+
+      const userExists = users.some((user) => user.email === authForm.email)
+      if (userExists) {
+        setFeedback('Este e-mail já está cadastrado.')
+        return
+      }
+
+      const newUser = {
+        id: Date.now(),
+        name: authForm.name,
+        email: authForm.email,
+        password: await hashPassword(authForm.password),
+      }
+
+      setUsers((prevUsers) => [...prevUsers, newUser])
+      setCurrentUser(newUser)
+      setFeedback(`Conta criada com sucesso, ${newUser.name}!`)
+      setAuthForm({ name: '', email: '', password: '' })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setIsLoggedIn(true)
-    setPassword('')
-    setName(authMode === 'register' ? name.trim() || 'Usuário' : 'Usuário')
   }
 
   const handleLogout = () => {
-    setIsLoggedIn(false)
-    setName('')
-    setEmail('')
-    setPassword('')
-    setDraft('')
+    setCurrentUser(null)
+    setFeedback('Você saiu da sessão. Volte sempre!')
   }
 
   const handlePublish = (event) => {
     event.preventDefault()
 
-    if (!draft.trim()) {
+    if (!currentUser) {
+      setFeedback('Faça login para publicar.')
+      return
+    }
+
+    const content = draft.trim()
+    if (!content) {
+      setFeedback('Escreva algo antes de publicar.')
       return
     }
 
     const newPost = {
       id: Date.now(),
-      author: name.trim() || 'Você',
-      handle: '@voce',
+      author: currentUser.name,
+      handle: `@${currentUser.name.toLowerCase()}`,
       time: 'agora',
-      content: draft.trim(),
+      content,
       likes: 0,
       liked: false,
     }
 
     setPosts((currentPosts) => [newPost, ...currentPosts])
     setDraft('')
+    setFeedback('Post publicado com sucesso!')
   }
 
   const handleToggleLike = (postId) => {
-    if (!isLoggedIn) {
+    if (!currentUser) {
+      setFeedback('Entre na conta para curtir posts.')
       return
     }
 
@@ -97,7 +209,7 @@ function App() {
     <div className={`app-shell ${theme}`}>
       <header className="topbar">
         <div>
-          <p className="eyebrow">Rede social • primeira etapa</p>
+          <p className="eyebrow">Rede social • segunda etapa</p>
           <h1>Conecta+</h1>
         </div>
         <button
@@ -115,8 +227,8 @@ function App() {
             <p className="eyebrow">Seu espaço para compartilhar</p>
             <h2>Uma rede simples, rápida e com personalidade.</h2>
             <p className="hero-copy">
-              Nesta primeira parte, a interface já mostra a experiência principal: ver posts,
-              entrar na conta e publicar mensagens.
+              Agora a interface já simula a experiência completa: entrar, publicar, curtir e
+              manter tudo salvo no navegador.
             </p>
 
             <div className="stats">
@@ -125,14 +237,18 @@ function App() {
                 <span>posts</span>
               </div>
               <div>
-                <strong>{posts.reduce((sum, post) => sum + post.likes, 0)}</strong>
+                <strong>{totalLikes}</strong>
                 <span>curtidas</span>
+              </div>
+              <div>
+                <strong>{totalUsers}</strong>
+                <span>usuários</span>
               </div>
             </div>
           </div>
 
           <div className="auth-card">
-            {!isLoggedIn ? (
+            {!currentUser ? (
               <>
                 <div className="auth-toggle">
                   <button
@@ -156,32 +272,33 @@ function App() {
                     <input
                       type="text"
                       placeholder="Seu nome"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
+                      value={authForm.name}
+                      onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
                     />
                   ) : null}
                   <input
                     type="email"
                     placeholder="E-mail"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    value={authForm.email}
+                    onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
                   />
                   <input
                     type="password"
                     placeholder="Senha"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    value={authForm.password}
+                    onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
                   />
-                  <button type="submit">
-                    {authMode === 'login' ? 'Entrar agora' : 'Criar conta'}
+                  <button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Processando...' : authMode === 'login' ? 'Entrar agora' : 'Criar conta'}
                   </button>
                 </form>
               </>
             ) : (
               <div className="welcome-card">
                 <p className="eyebrow">Você está dentro</p>
-                <h3>Olá, {name || 'usuário'}!</h3>
-                <p>Você já pode publicar pensamentos, curtir posts e acompanhar o feed.</p>
+                <h3>Olá, {currentUser.name}!</h3>
+                <p>{feedback}</p>
+                <p className="tiny-copy">Você já publicou {myPostsCount} {myPostsCount === 1 ? 'post' : 'posts'}.</p>
                 <button type="button" onClick={handleLogout}>
                   Sair
                 </button>
@@ -195,40 +312,48 @@ function App() {
             <label htmlFor="postDraft">O que estou pensando?</label>
             <textarea
               id="postDraft"
-              placeholder={isLoggedIn ? 'Compartilhe uma novidade...' : 'Entre para publicar'}
+              placeholder={currentUser ? 'Compartilhe uma novidade...' : 'Entre para publicar'}
+              maxLength={280}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              disabled={!isLoggedIn}
+              disabled={!currentUser}
             />
-            <button type="submit" disabled={!isLoggedIn}>
-              Publicar
-            </button>
+            <div className="composer-footer">
+              <span className="composer-hint">{280 - draft.length} caracteres restantes</span>
+              <button type="submit" disabled={!currentUser || !draft.trim()}>
+                Publicar
+              </button>
+            </div>
           </form>
 
           <div className="feed-list">
-            {posts.map((post) => (
-              <article key={post.id} className="post-card">
-                <div className="post-header">
-                  <div>
-                    <h3>{post.author}</h3>
-                    <p>
-                      {post.handle} • {post.time}
-                    </p>
+            {posts.length === 0 ? (
+              <div className="empty-state">Ainda não há posts por aqui. Seja o primeiro!</div>
+            ) : (
+              posts.map((post) => (
+                <article key={post.id} className="post-card">
+                  <div className="post-header">
+                    <div>
+                      <h3>{post.author}</h3>
+                      <p>
+                        {post.handle} • {post.time}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <p className="post-content">{post.content}</p>
-                <div className="post-footer">
-                  <button
-                    type="button"
-                    className={`like-button ${post.liked ? 'active' : ''}`}
-                    onClick={() => handleToggleLike(post.id)}
-                    disabled={!isLoggedIn}
-                  >
-                    {post.liked ? '💜' : '🤍'} {post.likes}
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <p className="post-content">{post.content}</p>
+                  <div className="post-footer">
+                    <button
+                      type="button"
+                      className={`like-button ${post.liked ? 'active' : ''}`}
+                      onClick={() => handleToggleLike(post.id)}
+                      disabled={!currentUser}
+                    >
+                      {post.liked ? '💜' : '🤍'} {post.likes}
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </section>
       </main>

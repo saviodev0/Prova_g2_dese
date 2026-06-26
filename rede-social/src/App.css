@@ -182,8 +182,33 @@
   resize: vertical;
 }
 
+.composer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-hint {
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.tiny-copy {
+  margin: 4px 0 0;
+  opacity: 0.8;
+}
+
 .composer button:disabled,
-.like-button:disabled {
+.like-button:disabled,
+.auth-form button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
