@@ -150,6 +150,8 @@ app.post('/api/logout', async (req, res) => {
   }
 });
 
+
+
 app.get('/api/posts', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
